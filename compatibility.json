@@ -1,0 +1,11 @@
+{
+  "service": "dashboard",
+  "version": "1.0.0",
+  "compatible_with": {
+    "admin": ">=1.0.0",
+    "testenv": ">=1.0.0",
+    "ping": ">=1.0.0",
+    "webhooks": ">=1.0.0",
+    "notification": ">=1.0.0"
+  }
+}
