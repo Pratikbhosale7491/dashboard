@@ -13,6 +13,51 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # ---------------- VERSION VALIDATION ----------------
+      - name: Check service compatibility
+        run: |
+          echo "Reading compatibility file..."
+          cat compatibility.json
+
+          echo "Fetching running service versions..."
+
+          ADMIN_VERSION=$(curl -s http://3.110.13.40:4000/service-info | jq -r '.version')
+          TESTENV_VERSION=$(curl -s http://3.110.13.40:5000/service-info | jq -r '.version')
+
+          echo "Admin running version: $ADMIN_VERSION"
+          echo "Testenv running version: $TESTENV_VERSION"
+
+          REQUIRED_ADMIN=$(jq -r '.compatible_with.admin' compatibility.json)
+          REQUIRED_TESTENV=$(jq -r '.compatible_with.testenv' compatibility.json)
+
+          echo "Dashboard requires admin: $REQUIRED_ADMIN"
+          echo "Dashboard requires testenv: $REQUIRED_TESTENV"
+
+          # Remove >= symbol
+          REQUIRED_ADMIN=${REQUIRED_ADMIN#>=}
+          REQUIRED_TESTENV=${REQUIRED_TESTENV#>=}
+
+          # Version compare function
+          verlte() {
+            [ "$1" = "$2" ] && return 0
+            [  "$(printf '%s\n' "$1" "$2" | sort -V | head -n1)" = "$1" ]
+          }
+
+          echo "Checking admin compatibility..."
+          if ! verlte "$REQUIRED_ADMIN" "$ADMIN_VERSION"; then
+            echo "❌ Admin service version incompatible"
+            exit 1
+          fi
+
+          echo "Checking testenv compatibility..."
+          if ! verlte "$REQUIRED_TESTENV" "$TESTENV_VERSION"; then
+            echo "❌ Testenv service version incompatible"
+            exit 1
+          fi
+
+          echo "✅ All services compatible. Proceeding deployment..."
+
+      # ---------------- DEPLOY ----------------
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -22,22 +67,9 @@ jobs:
           port: 22
           script: |
             set -e
-
-            echo "Connected to server"
-
             cd /home/ubuntu/apps/dashboard
-
-            echo "Pulling latest code..."
             git fetch origin main
             git reset --hard origin/main
-
-            echo "Installing dependencies..."
             npm install --production
-
-            echo "Restarting service..."
-            pm2 restart admin-service || pm2 start server.js --name dashboard
-
+            pm2 restart dashboard || pm2 start server.js --name dashboard
             pm2 save
-
-            echo "Deployment completed!"
-            
