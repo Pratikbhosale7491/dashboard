@@ -1,4 +1,4 @@
-name: Deploy Admin Service
+name: Deploy dashboard Service
 
 on:
   push:
